@@ -2,6 +2,7 @@ import React,{useEffect,useMemo,useState}from'react';
 import{createRoot}from'react-dom/client';
 import{onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut}from'firebase/auth';
 import{collection,addDoc,query,orderBy,onSnapshot,deleteDoc,doc,updateDoc}from'firebase/firestore';
+import{ref as storageRef,uploadBytes,getDownloadURL}from'firebase/storage';
 
 import{auth,db,storage}from'./firebase';
 import{Wallet,Plus,LogOut,CalendarDays,TrendingUp,TrendingDown,Factory,Clock,Trash2,ImagePlus,Camera,ChartNoAxesCombined,CheckCircle2}from'lucide-react';
@@ -9,20 +10,13 @@ import'./style.css';
 const money=n=>new Intl.NumberFormat('bn-BD',{style:'currency',currency:'BDT',maximumFractionDigits:0}).format(Number(n||0));
 const today=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)};
 const weekOfMonth=date=>Math.min(5,Math.ceil(Number((date||'').slice(8,10))/7));
-const CLOUDINARY_CLOUD_NAME=import.meta.env.VITE_CLOUDINARY_CLOUD_NAME||'';
-const CLOUDINARY_UPLOAD_PRESET='Money sheet';
-async function uploadPhotoToCloudinary(file){
-  if(!file) return '';
-  if(!CLOUDINARY_CLOUD_NAME) throw new Error('Cloudinary Cloud Name সেট করা নেই। GitHub Actions repository variable VITE_CLOUDINARY_CLOUD_NAME যোগ করুন।');
-  const formData=new FormData();
-  formData.append('file',file);
-  formData.append('upload_preset',CLOUDINARY_UPLOAD_PRESET);
-  const response=await fetch('https://api.cloudinary.com/v1_1/'+CLOUDINARY_CLOUD_NAME+'/image/upload',{method:'POST',body:formData});
-  let result={};
-  try{result=await response.json()}catch{}
-  if(!response.ok) throw new Error(result.error?.message||'Cloudinary ছবি আপলোড ব্যর্থ হয়েছে');
-  if(!result.secure_url) throw new Error('Cloudinary কোনো ছবির URL ফেরত দেয়নি');
-  return result.secure_url;
+async function uploadBonusPhoto(file){
+  if(!file||!auth.currentUser)return '';
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const path='users/'+auth.currentUser.uid+'/bonus/'+Date.now()+'-'+safeName;
+  const imageRef=storageRef(storage,path);
+  const uploaded=await uploadBytes(imageRef,file,{contentType:file.type||'image/jpeg'});
+  return await getDownloadURL(uploaded.ref);
 }
 
 function Auth(){const[email,setEmail]=useState(''),[pass,setPass]=useState(''),[create,setCreate]=useState(false),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{create?await createUserWithEmailAndPassword(auth,email,pass):await signInWithEmailAndPassword(auth,email,pass)}catch(x){setErr(x.message)}}return <main className="auth"><div className="logo">MR</div><h1>M.R MONEY TRACKER</h1><p>তোমার আয়, খরচ ও সঞ্চয়ের হিসাব</p><form onSubmit={submit}><input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} required/><input type="password" placeholder="Password (৬ অক্ষর বা বেশি)" value={pass} onChange={e=>setPass(e.target.value)} minLength={6} required/><button>{create?'Create account':'Login'}</button></form>{err&&<p className="error">{err}</p>}<button className="textbtn" onClick={()=>setCreate(v=>!v)}>{create?'আগে অ্যাকাউন্ট আছে? লগইন':'নতুন অ্যাকাউন্ট তৈরি করুন'}</button></main>}
@@ -39,7 +33,7 @@ const weeklyAdv=Array.from({length:5},(_,i)=>monthly.filter(x=>x.kind==='advance
 const filtered=items.filter(x=>(x.date||'').slice(0,7)===month&&(tab==='all'||x.kind===tab));
 function choosePhoto(file){setError('');setPhoto(file||null);setPhotoPreview('');if(!file)return;if(!file.type.startsWith('image/')){setPhoto(null);setError('একটি ছবি নির্বাচন করুন।');return;}const reader=new FileReader();reader.onload=()=>{if(typeof reader.result==='string'){setPhotoPreview(reader.result)}else{setError('ছবির প্রিভিউ তৈরি করা যায়নি।')}};reader.onerror=()=>{setPhotoPreview('');setError('ছবির প্রিভিউ পড়া যায়নি। আবার ছবি নির্বাচন করুন।')};reader.readAsDataURL(file)}
 
-async function save(e){e.preventDefault();if(!amount||Number(amount)<=0||!user)return;setBusy(true);setError('');try{let photoUrl='';if(photo&&kind==='bonus'){if(photo.size>10*1024*1024)throw new Error('ছবির সাইজ ১০ MB-এর বেশি।');photoUrl=await uploadPhotoToCloudinary(photo)}await addDoc(collection(db,'users',user.uid,'entries'),{kind,amount:Number(amount),date,category,note,photoUrl,createdAt:Date.now()});setAmount('');setNote('');setPhoto(null);setPhotoPreview('');['photoGalleryInput','photoCameraInput'].forEach(id=>{const input=document.getElementById(id);if(input)input.value=''});setError(photo&&kind==='bonus'?'হিসাব ও ছবি সফলভাবে সেভ হয়েছে ✓':'হিসাব সফলভাবে সেভ হয়েছে ✓')}catch(e){setError('সেভ হয়নি: '+(e.message||'অজানা সমস্যা'))}finally{setBusy(false)}}
+async function save(e){e.preventDefault();if(!amount||Number(amount)<=0||!user)return;setBusy(true);setError('');try{let photoUrl='';if(photo&&kind==='bonus'){if(photo.size>10*1024*1024)throw new Error('ছবির সাইজ ১০ MB-এর বেশি।');photoUrl=await uploadBonusPhoto(photo)}await addDoc(collection(db,'users',user.uid,'entries'),{kind,amount:Number(amount),date,category,note,photoUrl,createdAt:Date.now()});setAmount('');setNote('');setPhoto(null);setPhotoPreview('');['photoGalleryInput','photoCameraInput'].forEach(id=>{const input=document.getElementById(id);if(input)input.value=''});setError(photo&&kind==='bonus'?'হিসাব ও ছবি সফলভাবে সেভ হয়েছে ✓':'হিসাব সফলভাবে সেভ হয়েছে ✓')}catch(e){setError('সেভ হয়নি: '+(e.message||'অজানা সমস্যা'))}finally{setBusy(false)}}
 async function remove(x){if(!confirm('এই হিসাবটি মুছে ফেলবে?'))return;try{await deleteDoc(doc(db,'users',user.uid,'entries',x.id))}catch(e){setError('মুছতে সমস্যা: '+e.message)}}
 if(!user)return <Auth/>;
 const labels={salary:'মাসিক বেতন',bonus:'প্রোডাকশন বোনাস',ot:'ওভারটাইম',otherIncome:'অন্যান্য আয়',advance:'সাপ্তাহিক অগ্রিম',expense:'দৈনিক খরচ'};
