@@ -9,6 +9,22 @@ import'./style.css';
 const money=n=>new Intl.NumberFormat('bn-BD',{style:'currency',currency:'BDT',maximumFractionDigits:0}).format(Number(n||0));
 const today=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)};
 const weekOfMonth=date=>Math.min(5,Math.ceil(Number((date||'').slice(8,10))/7));
+const CLOUDINARY_CLOUD_NAME=import.meta.env.VITE_CLOUDINARY_CLOUD_NAME||'';
+const CLOUDINARY_UPLOAD_PRESET='Money sheet';
+async function uploadPhotoToCloudinary(file){
+  if(!file) return '';
+  if(!CLOUDINARY_CLOUD_NAME) throw new Error('Cloudinary Cloud Name সেট করা নেই। GitHub Actions repository variable VITE_CLOUDINARY_CLOUD_NAME যোগ করুন।');
+  const formData=new FormData();
+  formData.append('file',file);
+  formData.append('upload_preset',CLOUDINARY_UPLOAD_PRESET);
+  const response=await fetch('https://api.cloudinary.com/v1_1/'+CLOUDINARY_CLOUD_NAME+'/image/upload',{method:'POST',body:formData});
+  let result={};
+  try{result=await response.json()}catch{}
+  if(!response.ok) throw new Error(result.error?.message||'Cloudinary ছবি আপলোড ব্যর্থ হয়েছে');
+  if(!result.secure_url) throw new Error('Cloudinary কোনো ছবির URL ফেরত দেয়নি');
+  return result.secure_url;
+}
+
 function Auth(){const[email,setEmail]=useState(''),[pass,setPass]=useState(''),[create,setCreate]=useState(false),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{create?await createUserWithEmailAndPassword(auth,email,pass):await signInWithEmailAndPassword(auth,email,pass)}catch(x){setErr(x.message)}}return <main className="auth"><div className="logo">MR</div><h1>M.R MONEY TRACKER</h1><p>তোমার আয়, খরচ ও সঞ্চয়ের হিসাব</p><form onSubmit={submit}><input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} required/><input type="password" placeholder="Password (৬ অক্ষর বা বেশি)" value={pass} onChange={e=>setPass(e.target.value)} minLength={6} required/><button>{create?'Create account':'Login'}</button></form>{err&&<p className="error">{err}</p>}<button className="textbtn" onClick={()=>setCreate(v=>!v)}>{create?'আগে অ্যাকাউন্ট আছে? লগইন':'নতুন অ্যাকাউন্ট তৈরি করুন'}</button></main>}
 function App(){const[user,setUser]=useState(null),[items,setItems]=useState([]),[tab,setTab]=useState('all'),[month,setMonth]=useState(today().slice(0,7)),[kind,setKind]=useState('expense'),[amount,setAmount]=useState(''),[date,setDate]=useState(today()),[category,setCategory]=useState('খাবার'),[note,setNote]=useState(''),[photo,setPhoto]=useState(null),[photoPreview,setPhotoPreview]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
 useEffect(()=>onAuthStateChanged(auth,setUser),[]);
