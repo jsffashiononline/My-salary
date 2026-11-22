@@ -14,7 +14,8 @@ function App(){const[user,setUser]=useState(null),[items,setItems]=useState([]),
 useEffect(()=>onAuthStateChanged(auth,setUser),[]);
 useEffect(()=>{if(!user)return;const q=query(collection(db,'users',user.uid,'entries'),orderBy('date','desc'));return onSnapshot(q,s=>setItems(s.docs.map(d=>({id:d.id,...d.data()}))),e=>setError('ডেটা লোড হয়নি: '+e.message))},[user]);
 const monthly=items.filter(x=>(x.date||'').slice(0,7)===month);
-const salaryTotal=monthly.filter(x=>x.kind==='salary').reduce((a,x)=>a+Number(x.amount||0),0);\nconst income=monthly.filter(x=>['salary','bonus','ot','otherIncome'].includes(x.kind)).reduce((a,x)=>a+Number(x.amount||0),0);
+const salaryTotal=monthly.filter(x=>x.kind==='salary').reduce((a,x)=>a+Number(x.amount||0),0);
+const income=monthly.filter(x=>['salary','bonus','ot','otherIncome'].includes(x.kind)).reduce((a,x)=>a+Number(x.amount||0),0);
 const exp=monthly.filter(x=>x.kind==='expense').reduce((a,x)=>a+Number(x.amount||0),0);
 const advances=monthly.filter(x=>x.kind==='advance').reduce((a,x)=>a+Number(x.amount||0),0);
 const balance=income-exp-advances;
