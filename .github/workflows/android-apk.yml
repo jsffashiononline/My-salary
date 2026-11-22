@@ -21,6 +21,8 @@ jobs:
       - name: Install web dependencies
         run: npm install
       - name: Build web app
+        env:
+          VITE_CLOUDINARY_CLOUD_NAME: ${{ vars.CLOUDINARY_CLOUD_NAME }}
         run: npm run build
       - name: Add Android platform
         run: npx cap add android
